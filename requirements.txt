@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+requests
+pydantic
+pydantic-settings
+streamlit
+python-dotenv
+langchain_google_genai
+slowapi
