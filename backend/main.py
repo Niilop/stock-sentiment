@@ -14,7 +14,7 @@ from core.database import get_db
 # Load settings once at startup
 settings = get_settings()
 
-app = FastAPI(title="DS POC API")
+app = FastAPI(title="Stock Sentiment Analysis API", version="0.1.0")
 
 # Register the limiter to the FastAPI app state
 app.state.limiter = limiter
