@@ -14,8 +14,8 @@ def get_headers():
         return {"Authorization": f"Bearer {st.session_state.access_token}"}
     return {}
 
-st.set_page_config(page_title="DS API Tester", layout="wide")
-st.title("🚀 DS API Tester")
+st.set_page_config(page_title="Stock Sentiment Analysis API Tester", layout="wide")
+st.title("🚀 Stock Sentiment Analysis API Tester")
 
 # ==========================================
 # Sidebar: Authentication
@@ -79,6 +79,10 @@ with st.sidebar:
 # ==========================================
 st.header("AI Summarizer")
 st.write("Tests the `/llm/summarize/stream` endpoint. Note: The backend has a rate limit of 5 requests per minute.")
+
+if st.session_state.access_token is None:
+    st.warning("Please log in from the sidebar to use the summarizer.")
+    st.stop()
 
 with st.form("llm_form"):
     text_to_summarize = st.text_area("Text to summarize", height=150)
