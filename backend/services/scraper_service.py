@@ -1,4 +1,6 @@
 # backend/services/scraper_service.py
+import asyncio
+import logging
 import threading
 import time
 from datetime import datetime, timezone, timedelta
@@ -9,9 +11,15 @@ from alpaca.data.live.news import NewsDataStream
 
 from models.database import StockNews
 
+# Silence alpaca's noisy websocket retry logger
+logging.getLogger("alpaca").setLevel(logging.ERROR)
+
 # ─── Active stream registry ───────────────────────────────────────────────────
 _active_streams: dict[str, NewsDataStream] = {}
 _stream_lock = threading.Lock()
+
+_MAX_CONSECUTIVE_FAILURES = 3   # stop retrying after this many consecutive errors
+_RETRY_DELAY = 5                # seconds between reconnect attempts
 
 
 # ─── Historical fetch ─────────────────────────────────────────────────────────
@@ -87,6 +95,7 @@ def start_news_stream(
     Returns a stream_key (sorted comma-separated tickers) that can be used to stop
     the stream later.  If a stream for the same key is already running, returns the
     existing key without starting a duplicate.
+    Raises RuntimeError if the connection is refused (e.g. connection limit exceeded).
     """
     stream_key = ",".join(sorted(t.upper() for t in tickers))
 
@@ -122,8 +131,51 @@ def start_news_stream(
         upper_tickers = [t.upper() for t in tickers]
         news_stream.subscribe_news(handle_article, *upper_tickers)
 
-        thread = threading.Thread(target=news_stream.run, daemon=True)
+        # Circuit-breaker wrapper: replaces the SDK's infinite retry loop.
+        # Gives up after _MAX_CONSECUTIVE_FAILURES and cleans up the registry.
+        log = logging.getLogger(__name__)
+        first_error: list[Exception] = []
+
+        def run_with_circuit_breaker():
+            loop = asyncio.new_event_loop()
+            consecutive_failures = 0
+
+            async def controlled_run():
+                nonlocal consecutive_failures
+                news_stream._should_run = True
+                while news_stream._should_run and consecutive_failures < _MAX_CONSECUTIVE_FAILURES:
+                    try:
+                        await news_stream._start_ws()
+                        consecutive_failures = 0          # reset after a clean disconnect
+                    except Exception as exc:
+                        consecutive_failures += 1
+                        if not first_error:
+                            first_error.append(exc)
+                        log.warning(
+                            "News stream connection failed (%d/%d): %s",
+                            consecutive_failures, _MAX_CONSECUTIVE_FAILURES, exc,
+                        )
+                        if consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+                            log.error("News stream giving up after %d failures: %s", _MAX_CONSECUTIVE_FAILURES, exc)
+                            break
+                        await asyncio.sleep(_RETRY_DELAY)
+
+                news_stream._should_run = False
+                with _stream_lock:
+                    _active_streams.pop(stream_key, None)
+
+            try:
+                loop.run_until_complete(controlled_run())
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_with_circuit_breaker, daemon=True, name=f"news-stream-{stream_key}")
         thread.start()
+
+        # Wait briefly to detect an immediate auth rejection (e.g. connection limit)
+        thread.join(timeout=4)
+        if not thread.is_alive() and first_error:
+            raise RuntimeError(str(first_error[0]))
 
         _active_streams[stream_key] = news_stream
 
