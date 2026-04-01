@@ -22,3 +22,5 @@ bcrypt<4.0
 python-multipart
 pandas
 werkzeug
+alpaca-py
+pytz

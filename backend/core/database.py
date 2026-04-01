@@ -1,8 +1,12 @@
 # backend/core/database.py
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from typing import Generator
 from core.config import get_settings
+
+# Suppress SQLAlchemy's per-row parameter logging even when debug=True
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 settings = get_settings()
 
