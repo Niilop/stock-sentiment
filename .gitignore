@@ -4,7 +4,7 @@
 .vscode
 .apitest.ipynb
 apitest.ipynb
-
+finbert/
 # Environments
 .env
 .venv
