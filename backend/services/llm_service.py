@@ -1,6 +1,7 @@
 from typing import AsyncGenerator
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
+from fastapi import HTTPException
 from core.config import get_settings
 from datetime import datetime
 
@@ -45,10 +46,25 @@ def _build_llm() -> BaseChatModel:
 llm = _build_llm()
 
 
+def _raise_if_unavailable(exc: Exception) -> None:
+    msg = str(exc).upper()
+    if "503" in msg or "UNAVAILABLE" in msg:
+        raise HTTPException(
+            status_code=503,
+            detail="The LLM provider is currently experiencing high demand. Please try again later.",
+        )
+
+
 def summarize_text(text: str) -> str:
-    chain = _prompt | llm
-    response = chain.invoke({"text": text})
-    return response.content
+    try:
+        chain = _prompt | llm
+        response = chain.invoke({"text": text})
+        return response.content
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _raise_if_unavailable(exc)
+        raise
 
 
 _sentiment_prompt = PromptTemplate.from_template(
@@ -71,15 +87,21 @@ def analyze_sentiment_timeframe(
     articles_text: str,
     article_count: int,
 ) -> str:
-    chain = _sentiment_prompt | llm
-    response = chain.invoke({
-        "ticker": ticker,
-        "start": start.strftime("%Y-%m-%d"),
-        "end": end.strftime("%Y-%m-%d"),
-        "count": article_count,
-        "articles": articles_text,
-    })
-    return response.content
+    try:
+        chain = _sentiment_prompt | llm
+        response = chain.invoke({
+            "ticker": ticker,
+            "start": start.strftime("%Y-%m-%d"),
+            "end": end.strftime("%Y-%m-%d"),
+            "count": article_count,
+            "articles": articles_text,
+        })
+        return response.content
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _raise_if_unavailable(exc)
+        raise
 
 
 async def summarize_text_stream(text: str) -> AsyncGenerator[str, None]:
