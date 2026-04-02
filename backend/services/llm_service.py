@@ -2,6 +2,7 @@ from typing import AsyncGenerator
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 from core.config import get_settings
+from datetime import datetime
 
 settings = get_settings()
 
@@ -47,6 +48,37 @@ llm = _build_llm()
 def summarize_text(text: str) -> str:
     chain = _prompt | llm
     response = chain.invoke({"text": text})
+    return response.content
+
+
+_sentiment_prompt = PromptTemplate.from_template(
+    "You are a financial analyst. Below are {count} news articles about {ticker} "
+    "published between {start} and {end}. "
+    "Each line shows: [date] [sentiment] headline — summary\n\n"
+    "{articles}\n\n"
+    "Based on these articles:\n"
+    "1. Summarize the overall market sentiment for {ticker} during this period.\n"
+    "2. Identify the key themes and events driving sentiment.\n"
+    "3. Note any significant sentiment shifts or notable outliers.\n\n"
+    "Be concise and factual."
+)
+
+
+def analyze_sentiment_timeframe(
+    ticker: str,
+    start: datetime,
+    end: datetime,
+    articles_text: str,
+    article_count: int,
+) -> str:
+    chain = _sentiment_prompt | llm
+    response = chain.invoke({
+        "ticker": ticker,
+        "start": start.strftime("%Y-%m-%d"),
+        "end": end.strftime("%Y-%m-%d"),
+        "count": article_count,
+        "articles": articles_text,
+    })
     return response.content
 
 

@@ -15,8 +15,11 @@ from models.schemas import (
     NewsStreamStopRequest,
     NewsArticleResponse,
     JobSubmitResponse,
+    SentimentSummaryRequest,
+    SentimentSummaryResponse,
+    SentimentBreakdown,
 )
-from services import scraper_service
+from services import scraper_service, llm_service
 from services.job_service import create_job, run_job
 
 router = APIRouter(prefix="/news", tags=["news"])
@@ -110,7 +113,78 @@ def stream_list(current_user: User = Depends(get_current_user)):
     return scraper_service.list_active_streams()
 
 
-# ─── Query stored news ────────────────────────────────────────────────────────
+# ─── Sentiment summary for a timeframe ───────────────────────────────────────
+
+@router.post("/sentiment-summary", response_model=SentimentSummaryResponse)
+def sentiment_summary(
+    body: SentimentSummaryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Pull all news for a ticker within the given timeframe, build a prompt from
+    their headline / summary / sentiment labels, and return an LLM analysis.
+    Articles without a sentiment score are included but marked as 'unscored'.
+    """
+    ticker = body.ticker.upper()
+
+    articles = (
+        db.query(StockNews)
+        .filter(
+            StockNews.ticker == ticker,
+            StockNews.published_at >= body.start,
+            StockNews.published_at <= body.end,
+        )
+        .order_by(StockNews.published_at.asc())
+        .all()
+    )
+
+    if not articles:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No news articles found for {ticker} between {body.start.date()} and {body.end.date()}",
+        )
+
+    breakdown = SentimentBreakdown(positive=0, negative=0, neutral=0, unscored=0)
+    lines: list[str] = []
+
+    for article in articles:
+        sentiment_label = article.sentiment or "unscored"
+        match sentiment_label:
+            case "positive":
+                breakdown.positive += 1
+            case "negative":
+                breakdown.negative += 1
+            case "neutral":
+                breakdown.neutral += 1
+            case _:
+                breakdown.unscored += 1
+
+        date_str = article.published_at.strftime("%Y-%m-%d")
+        summary_text = article.summary.strip() if article.summary else ""
+        line = f"[{date_str}] [{sentiment_label}] {article.headline}"
+        if summary_text:
+            line += f" — {summary_text}"
+        lines.append(line)
+
+    articles_text = "\n".join(lines)
+    llm_summary = llm_service.analyze_sentiment_timeframe(
+        ticker=ticker,
+        start=body.start,
+        end=body.end,
+        articles_text=articles_text,
+        article_count=len(articles),
+    )
+
+    return SentimentSummaryResponse(
+        ticker=ticker,
+        start=body.start,
+        end=body.end,
+        articles_found=len(articles),
+        sentiment_breakdown=breakdown,
+        summary=llm_summary,
+    )
+
 
 @router.get("/", response_model=list[NewsArticleResponse])
 def get_news(

@@ -244,6 +244,29 @@ class NewsStreamResponse(BaseModel):
     status: str
 
 
+# ============= Sentiment Summary Schemas =============
+class SentimentSummaryRequest(BaseModel):
+    ticker: str
+    start: datetime
+    end: datetime
+
+
+class SentimentBreakdown(BaseModel):
+    positive: int
+    negative: int
+    neutral: int
+    unscored: int
+
+
+class SentimentSummaryResponse(BaseModel):
+    ticker: str
+    start: datetime
+    end: datetime
+    articles_found: int
+    sentiment_breakdown: SentimentBreakdown
+    summary: str
+
+
 # ============= Pipeline Schemas =============
 class PipelineCreate(BaseModel):
     name: str
