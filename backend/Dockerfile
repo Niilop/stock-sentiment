@@ -6,6 +6,7 @@ WORKDIR /app
 COPY backend/requirements.txt /app/
 
 # Install dependencies (adjust if you have requirements.txt)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy only backend folder contents into /app

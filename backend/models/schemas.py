@@ -220,11 +220,17 @@ class NewsArticleResponse(BaseModel):
     source: str
     author: str
     symbols: list
+    content: Optional[str] = None
+    sentiment: Optional[str] = None
     published_at: datetime
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class SentimentRunRequest(BaseModel):
+    tickers: List[str]   # use ["*"] to score all tickers
 
 
 class NewsFetchResponse(BaseModel):

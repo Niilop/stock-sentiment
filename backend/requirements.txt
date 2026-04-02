@@ -24,3 +24,6 @@ pandas
 werkzeug
 alpaca-py
 pytz
+transformers
+# torch: install manually to avoid CUDA bloat:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu --index-url https://download.pytorch.org/whl/cpu
