@@ -2,3 +2,4 @@ streamlit
 requests
 pydantic-settings
 python-dotenv
+plotly

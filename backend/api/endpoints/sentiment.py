@@ -5,12 +5,15 @@ from sqlalchemy.orm import Session
 from api.endpoints.auth import get_current_user
 from core.database import get_db
 from models.database import BackgroundJob, StockNews, User
+from collections import defaultdict
+
 from models.schemas import (
     SentimentRunRequest,
     JobSubmitResponse,
     SentimentSummaryRequest,
     SentimentSummaryResponse,
     SentimentBreakdown,
+    WeeklyScore,
 )
 from services import sentiment_service, llm_service
 from services.job_service import create_job, run_job
@@ -103,6 +106,17 @@ def sentiment_summary(
             line += f" — {summary_text}"
         lines.append(line)
 
+    _score_map = {"positive": 1.0, "neutral": 0.0, "negative": -1.0}
+    weekly_buckets: dict[str, list[float]] = defaultdict(list)
+    for article in articles:
+        if article.sentiment in _score_map:
+            week_key = article.published_at.strftime("%G-W%V")
+            weekly_buckets[week_key].append(_score_map[article.sentiment])
+    weekly_sentiment = [
+        WeeklyScore(week=k, avg_score=round(sum(v) / len(v), 3))
+        for k, v in sorted(weekly_buckets.items())
+    ]
+
     articles_text = "\n".join(lines)
     llm_summary = llm_service.analyze_sentiment_timeframe(
         ticker=ticker,
@@ -118,5 +132,6 @@ def sentiment_summary(
         end=body.end,
         articles_found=len(articles),
         sentiment_breakdown=breakdown,
+        weekly_sentiment=weekly_sentiment,
         summary=llm_summary,
     )

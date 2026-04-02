@@ -258,12 +258,18 @@ class SentimentBreakdown(BaseModel):
     unscored: int
 
 
+class WeeklyScore(BaseModel):
+    week: str       # ISO week label e.g. "2024-W03"
+    avg_score: float  # mean of positive=1, neutral=0, negative=-1
+
+
 class SentimentSummaryResponse(BaseModel):
     ticker: str
     start: datetime
     end: datetime
     articles_found: int
     sentiment_breakdown: SentimentBreakdown
+    weekly_sentiment: List[WeeklyScore]
     summary: str
 
 

@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import plotly.graph_objects as go
 import streamlit as st
 import requests
 
@@ -138,6 +139,32 @@ if run_analysis:
             m3.metric("Negative", bd["negative"])
             m4.metric("Neutral", bd["neutral"])
             m5.metric("Unscored", bd["unscored"])
+
+            weekly = data.get("weekly_sentiment", [])
+            if weekly:
+                weeks = [w["week"] for w in weekly]
+                scores = [w["avg_score"] for w in weekly]
+
+                fig = go.Figure()
+                fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+                fig.add_trace(go.Scatter(
+                    x=weeks,
+                    y=scores,
+                    mode="lines+markers",
+                    fill="tozeroy",
+                    fillcolor="rgba(0,200,100,0.15)",
+                    line=dict(color="#00c864", width=2),
+                    marker=dict(size=6),
+                    name="Avg sentiment",
+                ))
+                fig.update_layout(
+                    title=f"{data['ticker']} weekly sentiment",
+                    yaxis=dict(title="Score", range=[-1.1, 1.1], tickvals=[-1, 0, 1], ticktext=["Negative", "Neutral", "Positive"]),
+                    xaxis=dict(title="Week"),
+                    showlegend=False,
+                    margin=dict(t=40, b=40),
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
             st.markdown("### Summary")
             st.write(data["summary"])
