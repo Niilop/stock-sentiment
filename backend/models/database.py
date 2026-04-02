@@ -135,6 +135,22 @@ class DocumentChunk(Base):
     owner = relationship("User", back_populates="document_chunks")
 
 
+class StockNews(Base):
+    __tablename__ = "stock_news"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alpaca_id = Column(String(50), unique=True, index=True, nullable=False)
+    ticker = Column(String(20), nullable=False, index=True)   # primary ticker it was fetched for
+    headline = Column(Text, nullable=False)
+    summary = Column(Text, default="")
+    url = Column(String(1000), nullable=False)
+    source = Column(String(100), nullable=False)
+    author = Column(String(255), default="")
+    symbols = Column(JSON, default=[])                        # all related tickers from Alpaca
+    published_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class JobStatus(str, enum.Enum):
     PENDING = "pending"
     RUNNING = "running"

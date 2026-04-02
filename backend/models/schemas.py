@@ -196,6 +196,48 @@ class JobStatusResponse(BaseModel):
         )
 
 
+# ============= Stock News Schemas =============
+class NewsFetchRequest(BaseModel):
+    tickers: List[str]
+    start: Optional[datetime] = None   # defaults to 30 days ago in the service
+
+
+class NewsStreamRequest(BaseModel):
+    tickers: List[str]
+
+
+class NewsStreamStopRequest(BaseModel):
+    stream_key: str
+
+
+class NewsArticleResponse(BaseModel):
+    id: int
+    alpaca_id: str
+    ticker: str
+    headline: str
+    summary: str
+    url: str
+    source: str
+    author: str
+    symbols: list
+    published_at: datetime
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NewsFetchResponse(BaseModel):
+    job_id: str
+    status: str
+
+
+class NewsStreamResponse(BaseModel):
+    stream_key: str
+    tickers: List[str]
+    status: str
+
+
 # ============= Pipeline Schemas =============
 class PipelineCreate(BaseModel):
     name: str

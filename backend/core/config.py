@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     openai_model: str
     anthropic_model: str
     
+    # Alpaca Markets API
+    alpaca_api_key: SecretStr = SecretStr("")
+    alpaca_secret_key: SecretStr = SecretStr("")
+
     # Database Configuration
     database_url: str
     

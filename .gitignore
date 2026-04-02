@@ -2,6 +2,8 @@
 .contextwindow
 .claude
 .vscode
+.apitest.ipynb
+apitest.ipynb
 
 # Environments
 .env

@@ -13,6 +13,10 @@ OPENAI_MODEL=""
 ANTHROPIC_API_KEY=""
 ANTHROPIC_MODEL=""
 
+# Alpaca Markets API
+ALPACA_API_KEY=""
+ALPACA_SECRET_KEY=""
+
 # Database Configuration
 DATABASE_URL=
 #DATABASE_URL_LOCAL=postgresql://postgres:postgres@localhost:5432/ds_playground
