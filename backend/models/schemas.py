@@ -264,6 +264,7 @@ class WeeklyScore(BaseModel):
 
 
 class SentimentSummaryResponse(BaseModel):
+    id: int
     ticker: str
     start: datetime
     end: datetime
@@ -271,6 +272,21 @@ class SentimentSummaryResponse(BaseModel):
     sentiment_breakdown: SentimentBreakdown
     weekly_sentiment: List[WeeklyScore]
     summary: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SentimentHistoryItem(BaseModel):
+    id: int
+    ticker: str
+    start: datetime
+    end: datetime
+    articles_found: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ============= Pipeline Schemas =============

@@ -27,6 +27,7 @@ class User(Base):
     document_chunks = relationship("DocumentChunk", back_populates="owner", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="owner", cascade="all, delete-orphan")
     background_jobs = relationship("BackgroundJob", back_populates="owner", cascade="all, delete-orphan")
+    sentiment_analyses = relationship("SentimentAnalysis", back_populates="owner", cascade="all, delete-orphan")
 
 
 class DataCatalog(Base):
@@ -133,6 +134,23 @@ class DocumentChunk(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     owner = relationship("User", back_populates="document_chunks")
+
+
+class SentimentAnalysis(Base):
+    __tablename__ = "sentiment_analyses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    ticker = Column(String(20), nullable=False, index=True)
+    start = Column(DateTime(timezone=True), nullable=False)
+    end = Column(DateTime(timezone=True), nullable=False)
+    articles_found = Column(Integer, nullable=False)
+    sentiment_breakdown = Column(JSON, nullable=False)
+    weekly_sentiment = Column(JSON, nullable=False)
+    summary = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    owner = relationship("User", back_populates="sentiment_analyses")
 
 
 class StockNews(Base):

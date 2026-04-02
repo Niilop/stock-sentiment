@@ -1,17 +1,18 @@
 # backend/api/endpoints/sentiment.py
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
 from api.endpoints.auth import get_current_user
 from core.database import get_db
-from models.database import BackgroundJob, StockNews, User
-from collections import defaultdict
-
+from models.database import BackgroundJob, SentimentAnalysis, StockNews, User
 from models.schemas import (
     SentimentRunRequest,
     JobSubmitResponse,
     SentimentSummaryRequest,
     SentimentSummaryResponse,
+    SentimentHistoryItem,
     SentimentBreakdown,
     WeeklyScore,
 )
@@ -126,12 +127,65 @@ def sentiment_summary(
         article_count=len(articles),
     )
 
-    return SentimentSummaryResponse(
+    record = SentimentAnalysis(
+        user_id=current_user.id,
         ticker=ticker,
         start=body.start,
         end=body.end,
         articles_found=len(articles),
-        sentiment_breakdown=breakdown,
-        weekly_sentiment=weekly_sentiment,
+        sentiment_breakdown=breakdown.model_dump(),
+        weekly_sentiment=[w.model_dump() for w in weekly_sentiment],
         summary=llm_summary,
     )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    return SentimentSummaryResponse.model_validate(record)
+
+
+@router.get("/history", response_model=list[SentimentHistoryItem])
+def get_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List the current user's past sentiment analyses, newest first."""
+    return (
+        db.query(SentimentAnalysis)
+        .filter(SentimentAnalysis.user_id == current_user.id)
+        .order_by(SentimentAnalysis.created_at.desc())
+        .all()
+    )
+
+
+@router.get("/history/{analysis_id}", response_model=SentimentSummaryResponse)
+def get_history_item(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve a single saved sentiment analysis by id."""
+    record = db.query(SentimentAnalysis).filter(
+        SentimentAnalysis.id == analysis_id,
+        SentimentAnalysis.user_id == current_user.id,
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    return SentimentSummaryResponse.model_validate(record)
+
+
+@router.delete("/history/{analysis_id}", status_code=204)
+def delete_history_item(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a saved sentiment analysis by id."""
+    record = db.query(SentimentAnalysis).filter(
+        SentimentAnalysis.id == analysis_id,
+        SentimentAnalysis.user_id == current_user.id,
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    db.delete(record)
+    db.commit()

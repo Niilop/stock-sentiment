@@ -9,17 +9,62 @@ API_URL = "http://backend:8000/"
 # Initialize session state
 if "access_token" not in st.session_state:
     st.session_state.access_token = None
+if "current_result" not in st.session_state:
+    st.session_state.current_result = None
 
 def get_headers():
     if st.session_state.access_token:
         return {"Authorization": f"Bearer {st.session_state.access_token}"}
     return {}
 
-st.set_page_config(page_title="Stock Sentiment Analysis API Tester", layout="wide")
-st.title("🚀 Stock Sentiment Analysis API Tester")
+def show_result(data: dict):
+    bd = data["sentiment_breakdown"]
+    start = data["start"][:10]
+    end = data["end"][:10]
+
+    st.subheader(f"{data['ticker']} — {start} to {end}")
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Articles", data["articles_found"])
+    m2.metric("Positive", bd["positive"])
+    m3.metric("Negative", bd["negative"])
+    m4.metric("Neutral", bd["neutral"])
+    m5.metric("Unscored", bd["unscored"])
+
+    weekly = data.get("weekly_sentiment", [])
+    if weekly:
+        weeks = [w["week"] for w in weekly]
+        scores = [w["avg_score"] for w in weekly]
+
+        fig = go.Figure()
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+        fig.add_trace(go.Scatter(
+            x=weeks,
+            y=scores,
+            mode="lines+markers",
+            fill="tozeroy",
+            fillcolor="rgba(0,200,100,0.15)",
+            line=dict(color="#00c864", width=2),
+            marker=dict(size=6),
+            name="Avg sentiment",
+        ))
+        fig.update_layout(
+            title=f"{data['ticker']} weekly sentiment",
+            yaxis=dict(title="Score", range=[-1.1, 1.1], tickvals=[-1, 0, 1], ticktext=["Negative", "Neutral", "Positive"]),
+            xaxis=dict(title="Week"),
+            showlegend=False,
+            margin=dict(t=40, b=40),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### Summary")
+    st.write(data["summary"])
+
+st.set_page_config(page_title="Stock Sentiment Analysis", layout="wide")
+st.title("Stock Sentiment Analysis")
 
 # ==========================================
-# Sidebar: Authentication
+# Sidebar: Authentication + History
 # ==========================================
 with st.sidebar:
     st.header("Authentication")
@@ -64,23 +109,51 @@ with st.sidebar:
     else:
         st.success("You are authenticated.")
 
-        if st.button("Get My Profile"):
-            response = requests.get(f"{API_URL}/auth/me", headers=get_headers())
-            if response.status_code == 200:
-                st.json(response.json())
-            else:
-                st.error("Failed to fetch profile. Token might be expired.")
-
         if st.button("Logout"):
             st.session_state.access_token = None
+            st.session_state.current_result = None
             st.rerun()
 
+        # ── Sentiment history ──────────────────────────────
+        st.divider()
+        st.subheader("History")
+
+        history_resp = requests.get(f"{API_URL}/sentiment/history", headers=get_headers())
+        if history_resp.status_code == 200:
+            history = history_resp.json()
+            if not history:
+                st.caption("No analyses yet.")
+            else:
+                for item in history:
+                    label = f"{item['ticker']}  {item['start'][:10]} → {item['end'][:10]}"
+                    col_load, col_del = st.columns([5, 1])
+                    with col_load:
+                        if st.button(label, key=f"history_{item['id']}", use_container_width=True):
+                            detail = requests.get(
+                                f"{API_URL}/sentiment/history/{item['id']}",
+                                headers=get_headers(),
+                            )
+                            if detail.status_code == 200:
+                                st.session_state.current_result = detail.json()
+                                st.rerun()
+                    with col_del:
+                        if st.button("🗑", key=f"delete_{item['id']}"):
+                            requests.delete(
+                                f"{API_URL}/sentiment/history/{item['id']}",
+                                headers=get_headers(),
+                            )
+                            if st.session_state.current_result and st.session_state.current_result.get("id") == item["id"]:
+                                st.session_state.current_result = None
+                            st.rerun()
+
 # ==========================================
-# Sentiment Timeframe Analysis
+# Main: Sentiment Analysis
 # ==========================================
-st.divider()
 st.header("Sentiment Analysis")
-st.write("Select a ticker and date range to get an AI-powered sentiment summary of stored news.")
+
+if st.session_state.access_token is None:
+    st.warning("Please log in from the sidebar.")
+    st.stop()
 
 # Fetch available tickers
 tickers_resp = requests.get(f"{API_URL}/news/tickers", headers=get_headers())
@@ -123,48 +196,15 @@ if run_analysis:
                 st.error(f"Connection error: {e}")
                 st.stop()
 
-        if resp.status_code == 404:
+        if resp.status_code in (429, 503):
+            st.error(resp.json().get("detail", "LLM provider unavailable."))
+        elif resp.status_code == 404:
             st.warning(resp.json().get("detail", "No articles found for this selection."))
         elif resp.status_code != 200:
             st.error(f"Error {resp.status_code}: {resp.text}")
         else:
-            data = resp.json()
-            bd = data["sentiment_breakdown"]
+            st.session_state.current_result = resp.json()
+            st.rerun()
 
-            st.subheader(f"{data['ticker']} — {start_date} to {end_date}")
-
-            m1, m2, m3, m4, m5 = st.columns(5)
-            m1.metric("Articles", data["articles_found"])
-            m2.metric("Positive", bd["positive"])
-            m3.metric("Negative", bd["negative"])
-            m4.metric("Neutral", bd["neutral"])
-            m5.metric("Unscored", bd["unscored"])
-
-            weekly = data.get("weekly_sentiment", [])
-            if weekly:
-                weeks = [w["week"] for w in weekly]
-                scores = [w["avg_score"] for w in weekly]
-
-                fig = go.Figure()
-                fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
-                fig.add_trace(go.Scatter(
-                    x=weeks,
-                    y=scores,
-                    mode="lines+markers",
-                    fill="tozeroy",
-                    fillcolor="rgba(0,200,100,0.15)",
-                    line=dict(color="#00c864", width=2),
-                    marker=dict(size=6),
-                    name="Avg sentiment",
-                ))
-                fig.update_layout(
-                    title=f"{data['ticker']} weekly sentiment",
-                    yaxis=dict(title="Score", range=[-1.1, 1.1], tickvals=[-1, 0, 1], ticktext=["Negative", "Neutral", "Positive"]),
-                    xaxis=dict(title="Week"),
-                    showlegend=False,
-                    margin=dict(t=40, b=40),
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            st.markdown("### Summary")
-            st.write(data["summary"])
+if st.session_state.current_result:
+    show_result(st.session_state.current_result)

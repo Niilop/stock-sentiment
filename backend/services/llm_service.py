@@ -48,6 +48,11 @@ llm = _build_llm()
 
 def _raise_if_unavailable(exc: Exception) -> None:
     msg = str(exc).upper()
+    if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg:
+        raise HTTPException(
+            status_code=429,
+            detail="LLM quota exceeded. Please check your plan or try again later.",
+        )
     if "503" in msg or "UNAVAILABLE" in msg:
         raise HTTPException(
             status_code=503,
