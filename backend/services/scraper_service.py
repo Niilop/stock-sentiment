@@ -40,7 +40,7 @@ def fetch_historical_news(
 
     for ticker in tickers:
         ticker = ticker.upper()
-        request_params = NewsRequest(symbols=ticker, start=start)
+        request_params = NewsRequest(symbols=ticker, start=start, include_content=True)
         news_page = client.get_news(request_params)
 
         fetched = 0
@@ -64,6 +64,7 @@ def fetch_historical_news(
                 source=article.source,
                 author=getattr(article, "author", "") or "",
                 symbols=list(article.symbols) if article.symbols else [],
+                content=getattr(article, "content", None) or None,
                 published_at=article.created_at,
             ))
             fetched += 1
@@ -150,6 +151,7 @@ def start_news_stream(
                             source=article.source,
                             author=getattr(article, "author", "") or "",
                             symbols=list(article.symbols) if article.symbols else [],
+                            content=getattr(article, "content", None) or None,
                             published_at=article.created_at,
                         )
                         db.add(new_article)

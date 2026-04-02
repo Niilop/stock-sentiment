@@ -147,6 +147,8 @@ class StockNews(Base):
     source = Column(String(100), nullable=False)
     author = Column(String(255), default="")
     symbols = Column(JSON, default=[])                        # all related tickers from Alpaca
+    content = Column(Text, nullable=True)                     # full article content (HTML, may be absent)
+    sentiment = Column(String(50), nullable=True)             # sentiment label, added later
     published_at = Column(DateTime(timezone=True), nullable=False, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
