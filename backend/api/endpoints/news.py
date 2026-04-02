@@ -113,6 +113,18 @@ def stream_list(current_user: User = Depends(get_current_user)):
     return scraper_service.list_active_streams()
 
 
+# ─── Available tickers ───────────────────────────────────────────────────────
+
+@router.get("/tickers", response_model=list[str])
+def get_tickers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all distinct ticker symbols that have stored news articles."""
+    rows = db.query(StockNews.ticker).distinct().order_by(StockNews.ticker).all()
+    return [r.ticker for r in rows]
+
+
 # ─── Sentiment summary for a timeframe ───────────────────────────────────────
 
 @router.post("/sentiment-summary", response_model=SentimentSummaryResponse)

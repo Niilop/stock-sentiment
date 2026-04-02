@@ -1,4 +1,4 @@
-import json
+from datetime import date, timedelta
 import streamlit as st
 import requests
 
@@ -75,53 +75,69 @@ with st.sidebar:
             st.rerun()
 
 # ==========================================
-# Main Content: AI Summarizer
+# Sentiment Timeframe Analysis
 # ==========================================
-st.header("AI Summarizer")
-st.write("Tests the `/llm/summarize/stream` endpoint. Note: The backend has a rate limit of 5 requests per minute.")
+st.divider()
+st.header("Sentiment Analysis")
+st.write("Select a ticker and date range to get an AI-powered sentiment summary of stored news.")
 
-if st.session_state.access_token is None:
-    st.warning("Please log in from the sidebar to use the summarizer.")
+# Fetch available tickers
+tickers_resp = requests.get(f"{API_URL}/news/tickers", headers=get_headers())
+if tickers_resp.status_code != 200:
+    st.error("Could not load tickers from the database.")
     st.stop()
 
-with st.form("llm_form"):
-    text_to_summarize = st.text_area("Text to summarize", height=150)
-    run_llm = st.form_submit_button("Summarize")
+tickers = tickers_resp.json()
+if not tickers:
+    st.info("No news articles found in the database yet. Fetch some news first.")
+    st.stop()
 
-if run_llm:
-    if not text_to_summarize:
-        st.warning("Please enter some text first.")
+col1, col2, col3 = st.columns([2, 2, 2])
+with col1:
+    selected_ticker = st.selectbox("Ticker", tickers)
+with col2:
+    start_date = st.date_input("From", value=date.today() - timedelta(days=30))
+with col3:
+    end_date = st.date_input("To", value=date.today())
+
+run_analysis = st.button("Analyze Sentiment", type="primary")
+
+if run_analysis:
+    if start_date > end_date:
+        st.error("'From' date must be before 'To' date.")
     else:
-        output = st.empty()
-        full_response = ""
-        try:
-            with requests.post(
-                f"{API_URL}/llm/summarize/stream",
-                json={"text": text_to_summarize},
-                headers=get_headers(),
-                stream=True,
-                timeout=60,
-            ) as res:
-                if res.status_code == 429:
-                    st.error("Rate limit exceeded! Please wait a minute.")
-                elif res.status_code != 200:
-                    st.error(f"Error: {res.text}")
-                else:
-                    for line in res.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        data = decoded[6:]
-                        if data == "[DONE]":
-                            break
-                        chunk = json.loads(data)
-                        if chunk.startswith("[ERROR]"):
-                            st.error(chunk)
-                            break
-                        full_response += chunk
-                        output.info(full_response + " ▌")
-                    output.info(full_response)
-        except requests.exceptions.RequestException as e:
-            st.error(f"Connection error: {e}")
+        with st.spinner(f"Analyzing {selected_ticker} sentiment from {start_date} to {end_date}…"):
+            try:
+                resp = requests.post(
+                    f"{API_URL}/news/sentiment-summary",
+                    json={
+                        "ticker": selected_ticker,
+                        "start": f"{start_date}T00:00:00",
+                        "end": f"{end_date}T23:59:59",
+                    },
+                    headers=get_headers(),
+                    timeout=120,
+                )
+            except requests.exceptions.RequestException as e:
+                st.error(f"Connection error: {e}")
+                st.stop()
+
+        if resp.status_code == 404:
+            st.warning(resp.json().get("detail", "No articles found for this selection."))
+        elif resp.status_code != 200:
+            st.error(f"Error {resp.status_code}: {resp.text}")
+        else:
+            data = resp.json()
+            bd = data["sentiment_breakdown"]
+
+            st.subheader(f"{data['ticker']} — {start_date} to {end_date}")
+
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Articles", data["articles_found"])
+            m2.metric("Positive", bd["positive"])
+            m3.metric("Negative", bd["negative"])
+            m4.metric("Neutral", bd["neutral"])
+            m5.metric("Unscored", bd["unscored"])
+
+            st.markdown("### Summary")
+            st.write(data["summary"])
