@@ -76,9 +76,9 @@ On first startup the backend runs Alembic migrations automatically. FinBERT is d
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/sentiment/run` | Score unscored articles with FinBERT (background job) |
-| `POST` | `/news/sentiment-summary` | Build a prompt from stored articles and return an LLM analysis |
+| `POST` | `/sentiment/summary` | Build a prompt from stored articles and return an LLM analysis |
 
-`POST /news/sentiment-summary` body:
+`POST /sentiment/summary` body:
 ```json
 { "ticker": "AAPL", "start": "2024-01-01T00:00:00", "end": "2024-03-31T23:59:59" }
 ```

@@ -109,7 +109,7 @@ if run_analysis:
         with st.spinner(f"Analyzing {selected_ticker} sentiment from {start_date} to {end_date}…"):
             try:
                 resp = requests.post(
-                    f"{API_URL}/news/sentiment-summary",
+                    f"{API_URL}/sentiment/summary",
                     json={
                         "ticker": selected_ticker,
                         "start": f"{start_date}T00:00:00",
