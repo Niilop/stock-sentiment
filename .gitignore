@@ -3,7 +3,7 @@
 .claude
 .vscode
 .apitest.ipynb
-api_test.ipynb
+apitest.ipynb
 
 # Environments
 .env
